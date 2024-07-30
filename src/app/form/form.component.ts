@@ -1,114 +1,73 @@
+import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
-import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, Validators } from '@angular/forms';
-import { ISelectOption } from 'ngx-semantic/modules/select';
-import { CountryService } from '../services/country.service';
-import { NotificationService } from '../services/notification.service';
+import { FormsModule, NgForm } from '@angular/forms';
+import { HttpClient, HttpClientModule } from '@angular/common/http';
 import { Router } from '@angular/router';
+import { ToastrService } from 'ngx-toastr';
 
 @Component({
   selector: 'app-form',
+  standalone: true,
+  imports: [FormsModule, CommonModule, HttpClientModule],
   templateUrl: './form.component.html',
-  styleUrls: ['./form.component.css']
+  styleUrls: ['./form.component.css'],
 })
 export class FormComponent implements OnInit {
-  myForm!: FormGroup;
-  submitted = false;
-  isLoading = false;
-  countries: ISelectOption[] = [];
-  occupations = [
-    { text: 'Frontend Developer', value: 'frontend' },
-    { text: 'Backend Developer', value: 'backend' },
-    { text: 'Designer', value: 'design' },
-    { text: 'Devops Engineer', value: 'devops' },
+  firstName: string = '';
+  lastName: string = '';
+  email: string = '';
+  password: string = '';
+  phone: string = '';
+  country: string = '';
+  occupation: string = '';
+  countries: any[] = [];
+  occupations: string[] = [
+    'Frontend Developer',
+    'Backend Developer',
+    'Designer',
+    'Devops Engineer',
   ];
+  successful: string = '';
+
+  private url: string = 'https://restcountries.com/v3.1/all';
 
   constructor(
-    private fb: FormBuilder,
-    private countryService: CountryService,
-    private notificationService: NotificationService,
-    private router: Router
-  ) { }
+    private router: Router,
+    private http: HttpClient,
+    private toastr: ToastrService
+  ) {}
 
   ngOnInit() {
-    this.initForm();
     this.fetchCountries();
   }
 
-  initForm() {
-    this.myForm = this.fb.group({
-      firstName: ['', Validators.required],
-      lastName: ['', Validators.required],
-      email: ['', [Validators.required, Validators.email]],
-      password: ['', [Validators.required, this.passwordValidator]],
-      phoneNumber: ['', [Validators.required]],
-      country: ['', [Validators.required]],
-      occupation: ['', [Validators.required]],
-      successful: ['true'],
-    });
-  }
-
   fetchCountries() {
-    this.countryService.getCountries().subscribe(
-      (countries: ISelectOption[]) => {
-        this.countries = countries;
+    this.http.get(this.url).subscribe(
+      (data: any) => {
+        this.countries = data
+          .map((country: any) => ({
+            name: country.name.common,
+            code: country.cca2,
+          }))
+          .sort((a: any, b: any) => a.name.localeCompare(b.name));
       },
-      (error: any) => {
+      (error) => {
         console.error('Error fetching countries:', error);
       }
     );
   }
 
-  passwordValidator(control: AbstractControl): ValidationErrors | null {
-    const value: string = control.value;
-    const upperCasePattern = /[A-Z]/;
-    const specialCharPattern = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/;
-    let minLength = false;
-    let upperCase = false;
-    let specialChar = false;
-
-    // Check for errors
-    if (!value || value.length < 8) {
-      minLength = true;
-    }
-    if (!upperCasePattern.test(value)) {
-      upperCase = true;
-    }
-
-    if (!specialCharPattern.test(value)) {
-      specialChar = true;
-    }
-
-    // Return errors if any error
-    if (minLength || upperCase || specialChar) {
-      return { minLength, upperCase, specialChar }
-    }
-    return null;
-  }
-
-  onSubmit() {
-    this.isLoading = true;
-    this.submitted = true;
-    if (this.myForm.valid) {
-      const successfulValue = this.myForm.value.successful;
-      if (successfulValue === 'true') {
-        setTimeout(() => {
-          this.isLoading = false;
-          this.router.navigate(['/success']);
-          // Show success toastr notification
-          this.notificationService.showSuccess('Success!');
-        }, 5000);
+  onSubmit(form: NgForm) {
+    if (form.valid) {
+      if (this.successful === 'true') {
+        this.toastr.success('Form submitted successfully!', 'Success');
+        this.router.navigate(['/success']);
       } else {
-        // Show error toastr notification for 5 seconds
-        // Redirect back to the form page
-        setTimeout(() => {
-          this.isLoading = false;
-          this.notificationService.showError('Failure!');
-          this.router.navigate(['/']);
-        }, 5000);
+        this.toastr.error('Form submission failed. Please try again.', 'Error');
+        this.router.navigate(['/']);
       }
     } else {
-      this.notificationService.showError('Please fill in all required fields correctly!');
-      this.isLoading = false;
+      this.toastr.warning('Please fill out all required fields.', 'Warning');
     }
   }
 }
